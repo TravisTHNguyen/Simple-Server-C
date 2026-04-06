@@ -12,7 +12,7 @@
 const int PORT = 8000;
 /*Request-Line = Method SP Request-URI SP HTTP-Version CRLF */
 
-typedef enum http_status: uint16_t {
+typedef enum http_status {
     HTTP_RES_OK = 200,
     HTTP_RES_INTERNAL_SERVER_ERR = 400,
     HTTP_RES_NOT_FOUND = 404,
@@ -97,6 +97,7 @@ bool http_send_response(int socket, string header, string body) {
        return false;
    }
    n = send(socket, body.data, body.len, 0);
+   return true;
 }
 
 int handle_client(int client_socket) {
@@ -104,6 +105,7 @@ int handle_client(int client_socket) {
     char buf[1024];
     string hello_body = string_from_cstr("<h1>Hello, World!<h1>");
     string bye_body = string_from_cstr("<h1>Goodbye, World!<h1>");
+    string err_404 = string_from_cstr("<p>Error 404: Not Found</p><p><a href=\"/\">back to home</a></p>");
     for(;;) {
 
         memset(buf,0,sizeof(buf));
@@ -128,6 +130,7 @@ int handle_client(int client_socket) {
 
         http_req_line req_line = http_req_line_init();
         http_status result = parse_req_line(&req_line, lines.splits[0].start, lines.splits[0].len);
+        free_splits(&lines);
         if (result != HTTP_RES_OK) {
             printf("Error: invalid request line\n");
             return HTTP_RES_BAD_REQUEST;
@@ -137,18 +140,20 @@ int handle_client(int client_socket) {
         string route_bye = string_from_cstr("/bye");
 
         if (string_equal(&req_line.uri, &route_hello)) {
-            http_send_response(client_socket ,http_response_generate(buf, sizeof(buf), HTTP_RES_OK,hello_body.len), hello_body);
+            if (!http_send_response(client_socket ,http_response_generate(buf, sizeof(buf), HTTP_RES_OK,hello_body.len), hello_body)) {
+                return -1;
+            }
         }
 
        else if (string_equal(&req_line.uri, &route_bye)) {
-           http_send_response(client_socket, http_response_generate(buf, sizeof(buf), HTTP_RES_OK, bye_body.len), bye_body);
+          if(!http_send_response(client_socket, http_response_generate(buf, sizeof(buf), HTTP_RES_OK, bye_body.len), bye_body)) return -1;
        }
         else {
             printf("Error: unknown route: \"%.*s\"\n", (int)req_line.uri.len, req_line.uri.data);
+            (void)http_send_response(client_socket, http_response_generate(buf, sizeof(buf), HTTP_RES_NOT_FOUND, err_404.len), err_404);
             return -1;
         }
 
-        free_splits(&lines);
         close(client_socket);
         break;
 

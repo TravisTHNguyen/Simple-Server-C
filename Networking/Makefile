@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -pedantic -std=c99 -ggdb
+CFLAGS=-Wall -Wextra -pedantic -std=c99 -ggdb -Werror=return-type
 server: server.c
 	${CC} ${CFLAGS} $^ -o $@
 
